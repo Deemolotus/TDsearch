@@ -13,17 +13,24 @@ Web app for scanning **TD Sequential buy signals** (TD9, TD13, TD15) on US and C
 ## Requirements
 
 - Python 3.11+
-- Parent module [`td_scanner_core.py`](../td_scanner_core.py) (must stay in the repo root next to `TDdetector/`)
+- Dependencies in [`requirements.txt`](requirements.txt)
 
 ## Local setup
 
-From the `TD9ETC` directory:
+**Option A — run from this folder** (matches Streamlit Cloud / GitHub repo layout):
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
 
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+**Option B — run from parent `TD9ETC`** (full toolkit checkout):
+
+```bash
 pip install -r TDdetector/requirements.txt
 streamlit run TDdetector/streamlit_app.py
 ```
@@ -32,25 +39,23 @@ Open the URL shown in the terminal (default: `http://localhost:8501`).
 
 ## Streamlit Cloud
 
-1. Push this repo to GitHub (include `TDdetector/` and `td_scanner_core.py`).
+1. Push this folder to GitHub as the repo root (all files in `TDdetector/`, including `td_scanner_core.py`).
 2. Create a new app on [Streamlit Community Cloud](https://streamlit.io/cloud).
-3. Set **Main file path** to `TDdetector/streamlit_app.py`.
-4. Point dependencies to `TDdetector/requirements.txt` (or copy those lines into a root `requirements.txt`).
+3. Set **Main file path** to `streamlit_app.py`.
+4. Point dependencies to `requirements.txt`.
 
 **Tip:** Start with **Curated (fast)** mode. Full-exchange scans can take 30+ minutes and may hit hosted runtime limits.
 
 ## Project layout
 
 ```
-TDdetector/
 ├── streamlit_app.py    # Streamlit UI entry point
 ├── market_lists.py     # Exchange symbol lists and curated tickers
 ├── scan_runner.py      # Headless scan loop
+├── td_scanner_core.py  # TD scan engine (bundled for deployment)
 ├── requirements.txt
 ├── README.md
 └── LICENSE
-
-../td_scanner_core.py   # Shared TD engine (required)
 ```
 
 ## Related desktop apps

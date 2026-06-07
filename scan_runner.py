@@ -8,9 +8,14 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+APP_DIR = Path(__file__).resolve().parent
+PARENT_DIR = APP_DIR.parent
+# Streamlit Cloud deploys TDdetector/ as repo root; core lives alongside scan_runner.
+# Local dev may still use ../td_scanner_core.py only — check parent as fallback.
+for path in (PARENT_DIR, APP_DIR):
+    entry = str(path)
+    if entry not in sys.path:
+        sys.path.insert(0, entry)
 
 from td_scanner_core import ScanStats, analyse, batch_download
 
