@@ -1,14 +1,36 @@
-# TD Buy Signal Scanner (Streamlit)
+# Multi-Indicator Equity Scanner (Streamlit)
 
-Web app for scanning **TD Sequential buy signals** (TD9, TD13, TD15) on US and Canadian equities. Built with [Streamlit](https://streamlit.io/) and shares the scan engine with the desktop tkinter scanners in the parent folder.
+Standalone hybrid screener for **US** and **Canadian** equities. Hard-filters on
+liquidity and recent TD Sequential buy signals, then ranks candidates with CMF,
+Squeeze Momentum (拥挤值 proxy), SuperTrend, and a cycle projection model.
 
-## Features
+This repo is independent of the single-ticker CycleAnalysis app. Indicator logic
+ships in the bundled [`quant_engine.py`](quant_engine.py).
 
-- **US Scanner** — NASDAQ, NYSE, curated watchlist, or custom tickers (USD)
-- **Canada Scanner** — TSX (`.TO`), TSXV (`.V`), curated list, or custom tickers (CAD)
-- Configurable signal window, min price, min average volume, batch size, and liquidity filter
-- Live progress and ETA during scans
-- Color-coded results table and CSV download
+## Strategy (hybrid)
+
+| Stage | What | Role |
+|-------|------|------|
+| Hard filter | Latest price / 20d avg volume; TD9 / TD13 / TD15 buy in last N trading days (default **10 ≈ 2 weeks**) | Must pass |
+| Soft score | CMF negative→positive; SQZ `val` negative→positive; SuperTrend bullish; cycle projection slope up | Rank 0–100 |
+
+Scores are explainable sub-weights (TD / CMF / SQZ / SuperTrend / Cycle), normalized to 100.
+Cycle projection is a **ranking hint only** — not a probability or target price.
+
+**CMF disclaimer:** Chaikin Money Flow is a price-range × volume proxy. It is **not**
+true institutional net inflow.
+
+## Scan scopes (US)
+
+- Curated watchlist (fast)
+- All NASDAQ (common stocks, ETF filtered)
+- All NYSE (strict `Exchange == N` from NASDAQ Trader otherlisted)
+- S&P 500 constituents
+- NYSE + NASDAQ
+- NYSE + NASDAQ + S&P 500 (deduped; source tags preserved, e.g. `NYSE+SP500`)
+- Custom tickers
+
+Canada: curated / TSX / TSXV / both / custom (unchanged).
 
 ## Requirements
 
@@ -17,63 +39,72 @@ Web app for scanning **TD Sequential buy signals** (TD9, TD13, TD15) on US and C
 
 ## Local setup
 
-**Option A — run from this folder** (matches Streamlit Cloud / GitHub repo layout):
-
 ```bash
+cd TDsearch-main
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-**Option B — run from parent `TD9ETC`** (full toolkit checkout):
+Open the URL shown in the terminal (default `http://localhost:8501`).
+
+**Tip:** Start with **Curated** or a small **Custom** list. Full NYSE+NASDAQ+SP500
+scans take a long time and may hit Yahoo Finance rate limits.
+
+## How the pipeline works
+
+1. **Stage 1** — batch-download ~500 bars of High/Low/Close/Volume; require liquidity
+   and a TD buy in the signal window; compute CMF / SQZ / SuperTrend features and a
+   preliminary score.
+2. **Stage 2** — re-download the top *Cycle shortlist* (~900 bars); run DFE cycle fit
+   + future projection slope / R² / strength; re-score and sort descending by total.
+
+Failed cycle enrichment keeps the candidate with `cycle_error` set (score cycle = 0).
+
+## Tests
 
 ```bash
-pip install -r TDdetector/requirements.txt
-streamlit run TDdetector/streamlit_app.py
+pip install pytest
+pytest tests/ -q
 ```
 
-Open the URL shown in the terminal (default: `http://localhost:8501`).
-
-## Streamlit Cloud
-
-1. Push this folder to GitHub as the repo root (all files in `TDdetector/`, including `td_scanner_core.py`).
-2. Create a new app on [Streamlit Community Cloud](https://streamlit.io/cloud).
-3. Set **Main file path** to `streamlit_app.py`.
-4. Point dependencies to `requirements.txt`.
-
-**Tip:** Start with **Curated (fast)** mode. Full-exchange scans can take 30+ minutes and may hit hosted runtime limits.
+Tests use synthetic OHLCV only (no live Yahoo calls).
 
 ## Project layout
 
 ```
-├── streamlit_app.py    # Streamlit UI entry point
-├── market_lists.py     # Exchange symbol lists and curated tickers
-├── scan_runner.py      # Headless scan loop
-├── td_scanner_core.py  # TD scan engine (bundled for deployment)
+TDsearch-main/
+├── streamlit_app.py     # UI
+├── market_lists.py      # Symbol pools (NYSE / NASDAQ / SP500 / CA)
+├── scan_runner.py       # Two-stage scan loop
+├── td_scanner_core.py   # Filters, scoring, Yahoo download
+├── quant_engine.py      # Bundled indicators + cycle model
+├── run_full_market_scan.py
+├── tests/
 ├── requirements.txt
-├── README.md
-└── LICENSE
+└── README.md
 ```
-
-## Related desktop apps
-
-| Script | Market |
-|--------|--------|
-| [`td_buy_scanner_v32.py`](../td_buy_scanner_v32.py) | US (tkinter GUI) |
-| [`canada_td_scanner.py`](../canada_td_scanner.py) | Canada (tkinter GUI) |
 
 ## Data sources
 
-- Price/volume: [Yahoo Finance](https://finance.yahoo.com/) via `yfinance`
-- US symbols: NASDAQ Trader symbol directory
-- Canadian symbols: [TMX](https://www.tsx.com/) company directory API
+- Price/volume: Yahoo Finance via `yfinance` (`auto_adjust=False`)
+- US symbols: NASDAQ Trader symbol directories
+- S&P 500: public constituents CSV (GitHub datasets) with Wikipedia fallback
+- Canadian symbols: TMX company directory API
+
+## Known limits
+
+- Yahoo can throttle or drop symbols; failures appear in scan stats.
+- Cycle R² is in-sample and optimistic; do not treat as forecast skill.
+- Historical cycle overlay has look-ahead in fitting — the scanner only uses the
+  *forward* projection slope for ranking.
+- TD implementation is a practical simplification vs full DeMark rules.
 
 ## Disclaimer
 
-This tool is for research and education only. It is not financial advice.
+Research / education only. Not financial advice.
 
 ## License
 
